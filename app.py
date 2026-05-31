@@ -1,6 +1,6 @@
-import streamlit as pd
 import streamlit as st
 import datetime
+import urllib.parse
 
 # Page configuration
 st.set_page_config(
@@ -45,7 +45,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # -----------------------------------------------------------------------------
-# TAB 1: RECEIVE ORDER FROM SALES TEAM
+# TAB 1: RECEIVE ORDER FROM SALES TEAM (UPDATED WITH SEPARATE INPUT BOXES)
 # -----------------------------------------------------------------------------
 with tab1:
     st.header("Step 1: Record Incoming Sales Order")
@@ -59,20 +59,36 @@ with tab1:
             order_date = st.date_input("Order Date", datetime.date.today())
             sales_person = st.text_input("Sales Representative")
             
-        st.markdown("### Item Details")
-        item_details = st.text_area("Specify Items, Quantities, and Paper Specifications (e.g., Maplitho 60GSM, 50 Bundles)")
+        st.markdown("---")
+        st.markdown("### 📝 Item Specifications")
         
+        # Split item details into distinct input boxes
+        item_col1, item_col2, item_col3, item_col4 = st.columns(4)
+        
+        with item_col1:
+            item_name = st.text_input("Item Name / Type", placeholder="e.g., Maplitho")
+        with item_col2:
+            paper_gsm = st.text_input("Paper GSM", placeholder="e.g., 60 GSM")
+        with item_col3:
+            quantity = st.number_input("Quantity", min_value=0, step=1, value=0)
+        with item_col4:
+            unit_type = st.selectbox("Unit Type", ["Bundles", "Reams", "Sheets", "MT", "Boxes"])
+            
+        st.markdown("---")
         submit_order = st.form_submit_button("Log Order & Move to DO")
         
         if submit_order:
             if not order_id or not client_name:
                 st.error("Please fill out the Order Reference Number and Client Name.")
             else:
+                # Format the structured items into a clean string for the following steps
+                formatted_items = f"{item_name} ({paper_gsm}) | Qty: {quantity} {unit_type}"
+                
                 st.session_state.orders[order_id] = {
                     "client_name": client_name,
                     "order_date": order_date.strftime("%Y-%m-%d"),
                     "sales_person": sales_person,
-                    "item_details": item_details,
+                    "item_details": formatted_items,
                     "do_created": False,
                     "do_number": "",
                     "vehicle_no": "",
@@ -168,7 +184,7 @@ with tab4:
         selected_order_wa = st.selectbox("Select Order to Dispatch to Godown:", pending_whatsapp, key="sb_wa")
         order_info = st.session_state.orders[selected_order_wa]
         
-        # Structure the message explicitly for your warehouse operators
+        # Structure the text message layout
         whatsapp_message = (
             f"🚨 *NEW DISPATCH ORDER* 🚨\n\n"
             f"*DO Number:* {order_info['do_number']}\n"
@@ -182,12 +198,10 @@ with tab4:
         st.markdown("### Preview Text for WhatsApp")
         st.code(whatsapp_message, language="markdown")
         
-        # WhatsApp Web click formulation
-        # Replace with your actual Godown supervisor's phone number (include country code, no symbols)
+        # Phone number configuration input
         godown_phone = st.text_input("Godown Mobile Number (With country code, e.g., 919876543210)", value="91")
         
-        # Format for WhatsApp API URL URL-safe strings
-        import urllib.parse
+        # URL encode the message string safely
         encoded_message = urllib.parse.quote(whatsapp_message)
         whatsapp_url = f"https://api.whatsapp.com/send?phone={godown_phone}&text={encoded_message}"
         
@@ -208,10 +222,9 @@ with tab5:
     if not st.session_state.orders:
         st.warning("No operational logs recorded yet today.")
     else:
-        # Convert dictionary to DataFrame for crisp tabular formatting
         df_display = []
         for key, val in st.session_state.orders.items():
-            # Quick status logic badge representation
+            # Pipeline status categorization logic
             status_step = "📥 Sales Logged"
             if val["do_created"]: status_step = "📄 DO Created"
             if val["tally_status"] == "Invoiced": status_step = "📊 Tally Ready"
